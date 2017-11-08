@@ -1,0 +1,12 @@
+[package]
+name = "piggy"
+version = "0.1.0"
+authors = ["Pirh <***redacted.email@redacted.nope***>"]
+
+[dependencies]
+ansi_term = "~0.10.2"
+chrono = "~0.4.0"
+clap = "~2.27.1"
+serde = "~1.0.0"
+serde_derive = "~1.0.0"
+serde_yaml = "~0.7.0"

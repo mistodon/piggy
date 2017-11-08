@@ -1,0 +1,18 @@
+---
+transactions: 
+  - 
+    amount: -900
+    cause: rent
+    date: "2017-10-14"
+  - 
+    amount: 2000
+    cause: salary
+    date: "2017-10-25"
+  - 
+    amount: 10
+    cause: pocket money
+    date: "2017-11-07"
+  - 
+    amount: -5
+    cause: shopping
+    date: "2017-11-07"
