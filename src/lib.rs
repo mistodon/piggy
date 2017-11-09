@@ -1,4 +1,5 @@
 extern crate chrono;
+extern crate serde;
 
 #[macro_use]
 extern crate serde_derive;
@@ -17,26 +18,39 @@ macro_rules! expect
 pub mod data
 {
     pub use chrono::{ NaiveDate, Utc };
+    use serde::{ Serialize, Deserialize, Serializer, Deserializer };
 
+    #[derive(Debug, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
+    pub struct Date(pub NaiveDate);
 
-    #[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct Date(String);
-
-    impl From<NaiveDate> for Date
+    impl Serialize for Date
     {
-        fn from(date: NaiveDate) -> Date
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer
         {
-            Date(format!("{}", date))
+            self.0.to_string().serialize(serializer)
         }
     }
 
-    impl Date
+    impl<'de> Deserialize<'de> for Date
     {
-        pub fn as_naive(&self) -> Option<NaiveDate>
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>
         {
             use std::str::FromStr;
+            use serde::de::{ Error, Unexpected };
 
-            NaiveDate::from_str(&self.0).ok()
+            let date_string: String = Deserialize::deserialize(deserializer)?;
+            
+            match NaiveDate::from_str(&date_string)
+            {
+                Ok(date) => Ok(Date(date)),
+                Err(_) => Err(
+                    D::Error::invalid_value(
+                        Unexpected::Str(&date_string), &"a valid date of the form \"yyyy-mm-dd\""))
+            }
         }
     }
 
@@ -69,7 +83,55 @@ pub fn parse_date_unchecked(date: &str) -> NaiveDate
 
 pub fn balance_on_date(bank: &PiggyBank, date: NaiveDate) -> f64
 {
-    let date: Date = date.into();
+    let date = Date(date);
     bank.transactions.iter().take_while(|acc| acc.date <= date).map(|acc| acc.amount).sum()
+}
+
+pub fn balance_before_date(bank: &PiggyBank, date: NaiveDate) -> f64
+{
+    let date = Date(date);
+    bank.transactions.iter().take_while(|acc| acc.date < date).map(|acc| acc.amount).sum()
+}
+
+pub fn get_previous_payday(payday: u32, current_date: NaiveDate) -> NaiveDate
+{
+    use chrono::Datelike;
+
+    assert!(payday > 0 && payday <= 28);
+
+    let current_day = current_date.day();
+
+    if current_day > payday
+    {
+        current_date.with_day(payday).unwrap()
+    }
+    else
+    {
+        let current_year = current_date.year();
+        let (year, month) = match current_date.month()
+        {
+            1 => (current_year - 1, 12),
+            n => (current_year, n - 1)
+        };
+        NaiveDate::from_ymd(year, month, payday)
+    }
+}
+
+pub fn get_next_payday(payday: u32, current_date: NaiveDate) -> NaiveDate
+{
+    use chrono::Datelike;
+
+    assert!(payday > 0 && payday <= 28);
+
+    let prev_payday = get_previous_payday(payday, current_date);
+
+    let current_year = prev_payday.year();
+    let (year, month) = match prev_payday.month()
+    {
+        12 => (current_year + 1, 1),
+        n => (current_year, n + 1)
+    };
+
+    NaiveDate::from_ymd(year, month, payday)
 }
 

@@ -15,14 +15,19 @@ use piggy::data::*;
 
 struct AppConfig
 {
-    pub currency: String
+    pub currency: String,
+    pub payday: u32
 }
 
 impl Default for AppConfig
 {
     fn default() -> Self
     {
-        AppConfig { currency: "£".to_owned() }
+        AppConfig 
+        { 
+            currency: "£".to_owned(),
+            payday: 25
+        }
     }
 }
 
@@ -134,7 +139,7 @@ fn main()
                 Some(date) => piggy::parse_date_unchecked(date),
                 None => today
             };
-            bank.transactions.push(Transaction { amount, cause, date: date.into() });
+            bank.transactions.push(Transaction { amount, cause, date: Date(date) });
             bank_modified = true;
         },
         ("balance", Some(matches)) =>
@@ -145,13 +150,18 @@ fn main()
                 None => today
             };
             display_balance(&bank, date, &config);
+            display_monthly_account(&bank, date, &config);
+        },
+        _ =>
+        {
+            display_balance(&bank, today, &config);
+            display_monthly_account(&bank, today, &config);
         }
-        _ => display_balance(&bank, today, &config)
     }
 
     if bank_modified
     {
-        bank.transactions.sort_by_key(|acc| acc.date.as_naive().unwrap());
+        bank.transactions.sort_by_key(|acc| acc.date);
         write_file(&dotfile, &bank);
     }
 }
@@ -197,5 +207,49 @@ fn display_balance(bank: &PiggyBank, date: NaiveDate, config: &AppConfig)
     let value_color = if balance < 0.0 { Color::Fixed(9) } else { Color::Fixed(10) };
     let value_string = value_color.paint(format!("{}{}", &config.currency, balance));
     println!("{}{}", balance_string, value_string);
-    println!("{:?}", bank);
+}
+
+
+fn display_monthly_account(bank: &PiggyBank, date: NaiveDate, config: &AppConfig)
+{
+    use ansi_term::Color;
+
+    let prev_payday = piggy::get_previous_payday(config.payday, date);
+    let next_payday = piggy::get_next_payday(config.payday, date);
+    println!("From {} to {}", prev_payday, next_payday);
+    let transactions = bank.transactions.iter()
+        .skip_while(|acc| acc.date.0 < prev_payday)
+        .take_while(|acc| acc.date.0 <= next_payday);
+
+    let mut working_balance = piggy::balance_before_date(&bank, prev_payday);
+
+    let white = Color::Fixed(15);
+    let red = Color::Fixed(9);
+    let green = Color::Fixed(10);
+
+    let format_money = |amount: f64, pos_op|
+    {
+        let (color, sign, signum) = match amount
+        {
+            n if n < 0.0 => (red, '-', -1.0),
+            _ => (green, pos_op, 1.0)
+        };
+        let text = format!("{}{}{}", sign, &config.currency, amount * signum);
+        color.paint(format!("{: >6}", text))
+    };
+
+    for transaction in transactions
+    {
+        working_balance += transaction.amount;
+
+        let date_label = white.paint(transaction.date.0.to_string());
+        let delta_label = format_money(transaction.amount, '+');
+        let balance_label = format_money(working_balance, ' ');
+
+        println!("{}: {} -> {} - {}",
+                 date_label,
+                 delta_label,
+                 balance_label,
+                 transaction.cause);
+    }
 }
