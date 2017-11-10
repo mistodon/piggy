@@ -16,6 +16,7 @@ macro_rules! expect
 
 
 pub mod data;
+
 use data::*;
 
 
@@ -68,14 +69,6 @@ impl<'a> Iterator for MonthlyTransactionIter<'a>
             }
         }
     }
-}
-
-
-pub fn parse_date_unchecked(date: &str) -> NaiveDate
-{
-    use std::str::FromStr;
-
-    NaiveDate::from_str(date).unwrap()
 }
 
 
