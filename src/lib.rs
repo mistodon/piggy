@@ -79,35 +79,62 @@ pub mod data
         pub start_date: Date,
         pub end_date: Option<Date>
     }
-
-    pub struct MonthlyIter
-    {
-        date: Option<NaiveDate>
-    }
-
-    impl MonthlyIter
-    {
-        pub fn from_date(start_date: NaiveDate) -> Self
-        {
-            MonthlyIter { date: Some(start_date) }
-        }
-    }
-
-    impl Iterator for MonthlyIter
-    {
-        type Item = NaiveDate;
-
-        fn next(&mut self) -> Option<NaiveDate>
-        {
-            let value = self.date;
-            self.date = self.date.and_then(|date| super::same_day_next_month(date));
-            value
-        }
-    }
 }
 
 
 use data::*;
+
+
+pub struct MonthlyIter
+{
+    date: Option<NaiveDate>
+}
+
+impl Iterator for MonthlyIter
+{
+    type Item = NaiveDate;
+
+    fn next(&mut self) -> Option<NaiveDate>
+    {
+        let value = self.date;
+        self.date = self.date.and_then(|date| same_day_next_month(date));
+        value
+    }
+}
+
+
+pub struct MonthlyTransactionIter<'a>
+{
+    transaction: &'a MonthlyTransaction,
+    dates: MonthlyIter
+}
+
+impl<'a> Iterator for MonthlyTransactionIter<'a>
+{
+    type Item = Transaction;
+
+    fn next(&mut self) -> Option<Transaction>
+    {
+        let date = self.dates.next();
+
+        match date
+        {
+            None => None,
+            Some(date) if date < self.transaction.start_date.0 => None,
+            Some(date) => {
+                if let Some(end) = self.transaction.end_date
+                {
+                    if date > end.0
+                    {
+                        return None;
+                    }
+                }
+
+                Some(Transaction { date: Date(date), amount: self.transaction.amount, cause: self.transaction.cause.clone() })
+            }
+        }
+    }
+}
 
 
 pub fn parse_date_unchecked(date: &str) -> NaiveDate
@@ -117,6 +144,8 @@ pub fn parse_date_unchecked(date: &str) -> NaiveDate
     NaiveDate::from_str(date).unwrap()
 }
 
+
+// TODO: Clean up DRY fail between on/before
 pub fn balance_on_date(bank: &PiggyBank, date: NaiveDate) -> f64
 {
     let subtotal: f64 = bank.transactions
@@ -143,7 +172,7 @@ fn monthly_transactions_on_date(bank: &PiggyBank, date: NaiveDate) -> f64
 
     for transaction in &bank.monthly_transactions
     {
-        let dates = MonthlyIter::from_date(transaction.start_date.0);
+        let dates = MonthlyIter { date: Some(transaction.start_date.0) };
         for next in dates
         {
             if next > date
@@ -163,7 +192,7 @@ fn monthly_transactions_before_date(bank: &PiggyBank, date: NaiveDate) -> f64
 
     for transaction in &bank.monthly_transactions
     {
-        let dates = MonthlyIter::from_date(transaction.start_date.0);
+        let dates = MonthlyIter { date: Some(transaction.start_date.0) };
         for next in dates
         {
             if next >= date
