@@ -1,8 +1,12 @@
 extern crate ansi_term;
 extern crate chrono;
-extern crate clap;
 extern crate serde;
 extern crate serde_yaml;
+
+extern crate structopt;
+
+#[macro_use]
+extern crate structopt_derive;
 
 #[macro_use]
 extern crate piggy;
@@ -16,7 +20,7 @@ use piggy::data::*;
 struct AppConfig
 {
     pub currency: String,
-    pub payday: u32
+    pub payday: Day
 }
 
 impl Default for AppConfig
@@ -26,101 +30,69 @@ impl Default for AppConfig
         AppConfig 
         { 
             currency: "£".to_owned(),
-            payday: 25
+            payday: Day(25)
         }
+    }
+}
+
+
+#[derive(StructOpt)]
+#[structopt(name = "piggy", about = "A tool for tracking monthly spending.")]
+struct Piggy
+{
+    #[structopt(subcommand)]
+    subcommand: Option<PiggySubcommand>
+}
+
+#[derive(StructOpt)]
+enum PiggySubcommand
+{
+    #[structopt(name = "add", about = "Add some money to the piggy bank.")]
+    Add
+    {
+        #[structopt(help = "The amount of money to add.")]
+        amount: f64,
+
+        #[structopt(help = "The source of the money.")]
+        cause: String,
+
+        #[structopt(long = "on", help = "The date the money was added.", default_value = "today")]
+        on: Date,
+
+        #[structopt(short = "m", long = "monthly", help = "Add this amount of money this day every month.")]
+        monthly: Option<Day>
+    },
+
+    #[structopt(name = "spend", about = "Spend some money from the piggy bank")]
+    Spend
+    {
+        #[structopt(help = "The amount of money to spend.")]
+        amount: f64,
+
+        #[structopt(help = "The reason for spending the money.")]
+        cause: String,
+
+        #[structopt(long = "on", help = "The date the money was spent.", default_value = "today")]
+        on: Date,
+
+        #[structopt(short = "m", long = "monthly", help = "Spend this amount of money this day every month.")]
+        monthly: Option<Day>
+    },
+
+    #[structopt(name = "balance", about = "Display the balance on a certain date")]
+    Balance
+    {
+        #[structopt(long = "on", help = "The date to check the balance for.", default_value = "today")]
+        on: Date,
     }
 }
 
 
 fn main()
 {
-    use clap::{ App, SubCommand, Arg, AppSettings };
+    use structopt::StructOpt;
 
-    let app = App::new("piggy")
-        .version(env!("CARGO_PKG_VERSION"))
-        .about("Tool for tracking monthly spending")
-        .settings(&[
-            AppSettings::VersionlessSubcommands
-        ])
-
-        .subcommand(
-            SubCommand::with_name("add")
-                .about("Add some money into the piggy bank")
-                .arg(
-                    Arg::with_name("amount")
-                        .help("The amount of money to add")
-                        .required(true)
-                        .takes_value(true)
-                        .validator(is_f64)
-                    )
-                .arg(
-                    Arg::with_name("cause")
-                        .help("The source of the money")
-                        .required(true)
-                        .takes_value(true)
-                    )
-                .arg(
-                    Arg::with_name("on")
-                        .help("The date the money was added. Default is today")
-                        .long("on")
-                        .takes_value(true)
-                        .validator(is_date)
-                    )
-                .arg(
-                    Arg::with_name("monthly")
-                        .help("Add this amount of money this day every month")
-                        .long("monthly")
-                        .short("m")
-                        .takes_value(true)
-                        .validator(day_occurs_every_month)
-                    )
-                )
-
-        .subcommand(
-            SubCommand::with_name("spend")
-                .about("Spend some money from the piggy bank")
-                .arg(
-                    Arg::with_name("amount")
-                        .help("The amount of money spent")
-                        .required(true)
-                        .takes_value(true)
-                        .validator(is_f64)
-                    )
-                .arg(
-                    Arg::with_name("cause")
-                        .help("The reason for spending the money")
-                        .required(true)
-                        .takes_value(true)
-                    )
-                .arg(
-                    Arg::with_name("on")
-                        .help("The date the money was spent. Default is today")
-                        .long("on")
-                        .takes_value(true)
-                        .validator(is_date)
-                    )
-                .arg(
-                    Arg::with_name("monthly")
-                        .help("Spend this amount of money this day every month")
-                        .long("monthly")
-                        .short("m")
-                        .takes_value(true)
-                        .validator(day_occurs_every_month)
-                    )
-                )
-
-        .subcommand(
-            SubCommand::with_name("balance")
-                .about("Display the balance on any given date")
-                .arg(
-                    Arg::with_name("on")
-                        .help("The date to check the balance for. Default is today")
-                        .long("on")
-                        .takes_value(true)
-                        .validator(is_date)
-                    )
-                );
-
+    let command = Piggy::from_args();
 
     let dotfile = {
         use std::path::PathBuf;
@@ -144,43 +116,40 @@ fn main()
 
     let today = Utc::today().naive_utc();
 
-    let matches = app.get_matches();
-
-    match matches.subcommand()
+    match command.subcommand
     {
-        (command, Some(matches)) if command == "add" || command == "spend" =>
+        Some(PiggySubcommand::Add { amount, cause, on, monthly }) =>
         {
-            let amount: f64 = matches.value_of("amount").unwrap().parse().unwrap();
-            let amount = if command == "add" { amount } else { -amount };
-            let cause = matches.value_of("cause").unwrap().to_owned();
-            let date = match matches.value_of("on")
-            {
-                Some(date) => piggy::parse_date_unchecked(date),
-                None => today
-            };
-            match matches.value_of("monthly")
+            let date = on;
+            match monthly
             {
                 Some(day) => {
-                    let day = day.parse::<u32>().unwrap();
-                    bank.monthly_transactions.push(MonthlyTransaction { amount, cause, day, start_date: Date(date), end_date: None })
+                    bank.monthly_transactions.push(MonthlyTransaction { amount, cause, day, start_date: date, end_date: None })
                 }
-                None => bank.transactions.push(Transaction { amount, cause, date: Date(date) })
+                None => bank.transactions.push(Transaction { amount, cause, date })
             }
             bank_modified = true;
         },
-
-        ("balance", Some(matches)) =>
+        Some(PiggySubcommand::Spend { amount, cause, on, monthly }) =>
         {
-            let date = match matches.value_of("on")
+            let date = on;
+            let amount = -amount;
+            match monthly
             {
-                Some(date) => piggy::parse_date_unchecked(date),
-                None => today
-            };
-            display_balance(&bank, date, &config);
-            display_monthly_account(&bank, date, &config);
+                Some(day) => {
+                    bank.monthly_transactions.push(MonthlyTransaction { amount, cause, day, start_date: date, end_date: None })
+                }
+                None => bank.transactions.push(Transaction { amount, cause, date })
+            }
+            bank_modified = true;
         },
-
-        _ =>
+        Some(PiggySubcommand::Balance { on, .. }) =>
+        {
+            let date = on;
+            display_balance(&bank, date.0, &config);
+            display_monthly_account(&bank, date.0, &config);
+        },
+        None =>
         {
             display_balance(&bank, today, &config);
             display_monthly_account(&bank, today, &config);
@@ -191,28 +160,6 @@ fn main()
     {
         bank.transactions.sort_by_key(|acc| acc.date);
         write_file(&dotfile, &bank);
-    }
-}
-
-
-fn is_f64(s: String) -> Result<(), String>
-{
-    if s.parse::<f64>().is_ok() { Ok(()) } else { Err("Expected a decimal value".to_owned()) }
-}
-
-fn is_date(s: String) -> Result<(), String>
-{
-    use std::str::FromStr;
-
-    if NaiveDate::from_str(&s).is_ok() { Ok(()) } else { Err("Expected a date (yyyy-mm-dd)".to_owned()) }
-}
-
-fn day_occurs_every_month(s: String) -> Result<(), String>
-{
-    match s.parse::<u32>()
-    {
-        Ok(n) if (n > 0 && n <= 28) => Ok(()),
-        _ => Err("Expected a day between 1 and 28".to_owned())
     }
 }
 

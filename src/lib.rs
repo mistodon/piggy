@@ -15,73 +15,7 @@ macro_rules! expect
 }
 
 
-pub mod data
-{
-    pub use chrono::{ NaiveDate, Utc };
-    use serde::{ Serialize, Deserialize, Serializer, Deserializer };
-
-    #[derive(Debug, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
-    pub struct Date(pub NaiveDate);
-
-    impl Serialize for Date
-    {
-        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer
-        {
-            self.0.to_string().serialize(serializer)
-        }
-    }
-
-    impl<'de> Deserialize<'de> for Date
-    {
-        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>
-        {
-            use std::str::FromStr;
-            use serde::de::{ Error, Unexpected };
-
-            let date_string: String = Deserialize::deserialize(deserializer)?;
-            
-            match NaiveDate::from_str(&date_string)
-            {
-                Ok(date) => Ok(Date(date)),
-                Err(_) => Err(
-                    D::Error::invalid_value(
-                        Unexpected::Str(&date_string), &"a valid date of the form \"yyyy-mm-dd\""))
-            }
-        }
-    }
-
-
-    #[derive(Debug, Default, Serialize, Deserialize)]
-    pub struct PiggyBank
-    {
-        pub transactions: Vec<Transaction>,
-        pub monthly_transactions: Vec<MonthlyTransaction>
-    }
-
-    #[derive(Debug, Serialize, Deserialize)]
-    pub struct Transaction
-    {
-        pub amount: f64,
-        pub cause: String,
-        pub date: Date
-    }
-
-    #[derive(Debug, Serialize, Deserialize)]
-    pub struct MonthlyTransaction
-    {
-        pub amount: f64,
-        pub cause: String,
-        pub day: u32,
-        pub start_date: Date,
-        pub end_date: Option<Date>
-    }
-}
-
-
+pub mod data;
 use data::*;
 
 
@@ -166,6 +100,7 @@ pub fn balance_before_date(bank: &PiggyBank, date: NaiveDate) -> f64
     subtotal + monthly_transactions_before_date(bank, date)
 }
 
+// TODO: This seems to erroneously count the start_date even if it's the wrong Day
 fn monthly_transactions_on_date(bank: &PiggyBank, date: NaiveDate) -> f64
 {
     let mut total = 0.0;
@@ -186,6 +121,7 @@ fn monthly_transactions_on_date(bank: &PiggyBank, date: NaiveDate) -> f64
     total
 }
 
+// TODO: This seems to erroneously count the start_date even if it's the wrong Day
 fn monthly_transactions_before_date(bank: &PiggyBank, date: NaiveDate) -> f64
 {
     let mut total = 0.0;
@@ -225,7 +161,7 @@ pub fn same_day_next_month(date: NaiveDate) -> Option<NaiveDate>
     Some(NaiveDate::from_ymd(year, month, day))
 }
 
-pub fn get_previous_day(day: u32, current_date: NaiveDate) -> Option<NaiveDate>
+pub fn get_previous_day(day: Day, current_date: NaiveDate) -> Option<NaiveDate>
 {
     use chrono::Datelike;
 
@@ -233,7 +169,7 @@ pub fn get_previous_day(day: u32, current_date: NaiveDate) -> Option<NaiveDate>
 
     match current_day
     {
-        d if day <= d => current_date.with_day(day),
+        d if day.0 <= d => current_date.with_day(day.0),
         _ => {
             let current_year = current_date.year();
             let (year, month) = match current_date.month()
@@ -241,12 +177,12 @@ pub fn get_previous_day(day: u32, current_date: NaiveDate) -> Option<NaiveDate>
                 1 => (current_year - 1, 12),
                 n => (current_year, n - 1)
             };
-            NaiveDate::from_ymd_opt(year, month, day)
+            NaiveDate::from_ymd_opt(year, month, day.0)
         }
     }
 }
 
-pub fn get_next_day(day: u32, current_date: NaiveDate) -> Option<NaiveDate>
+pub fn get_next_day(day: Day, current_date: NaiveDate) -> Option<NaiveDate>
 {
     get_previous_day(day, current_date).and_then(|d| same_day_next_month(d))
 }
