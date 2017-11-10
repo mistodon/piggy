@@ -58,7 +58,8 @@ pub mod data
     #[derive(Debug, Default, Serialize, Deserialize)]
     pub struct PiggyBank
     {
-        pub transactions: Vec<Transaction>
+        pub transactions: Vec<Transaction>,
+        pub monthly_transactions: Vec<MonthlyTransaction>
     }
 
     #[derive(Debug, Serialize, Deserialize)]
@@ -67,6 +68,41 @@ pub mod data
         pub amount: f64,
         pub cause: String,
         pub date: Date
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct MonthlyTransaction
+    {
+        pub amount: f64,
+        pub cause: String,
+        pub day: u32,
+        pub start_date: Date,
+        pub end_date: Option<Date>
+    }
+
+    pub struct MonthlyIter
+    {
+        date: Option<NaiveDate>
+    }
+
+    impl MonthlyIter
+    {
+        pub fn from_date(start_date: NaiveDate) -> Self
+        {
+            MonthlyIter { date: Some(start_date) }
+        }
+    }
+
+    impl Iterator for MonthlyIter
+    {
+        type Item = NaiveDate;
+
+        fn next(&mut self) -> Option<NaiveDate>
+        {
+            let value = self.date;
+            self.date = self.date.and_then(|date| super::same_day_next_month(date));
+            value
+        }
     }
 }
 
@@ -83,55 +119,106 @@ pub fn parse_date_unchecked(date: &str) -> NaiveDate
 
 pub fn balance_on_date(bank: &PiggyBank, date: NaiveDate) -> f64
 {
-    let date = Date(date);
-    bank.transactions.iter().take_while(|acc| acc.date <= date).map(|acc| acc.amount).sum()
+    let subtotal: f64 = bank.transactions
+        .iter()
+        .take_while(|acc| acc.date.0 <= date)
+        .map(|acc| acc.amount)
+        .sum();
+    subtotal + monthly_transactions_on_date(bank, date)
 }
 
 pub fn balance_before_date(bank: &PiggyBank, date: NaiveDate) -> f64
 {
-    let date = Date(date);
-    bank.transactions.iter().take_while(|acc| acc.date < date).map(|acc| acc.amount).sum()
+    let subtotal: f64 = bank.transactions
+        .iter()
+        .take_while(|acc| acc.date.0 < date)
+        .map(|acc| acc.amount)
+        .sum();
+    subtotal + monthly_transactions_before_date(bank, date)
 }
 
-pub fn get_previous_payday(payday: u32, current_date: NaiveDate) -> NaiveDate
+fn monthly_transactions_on_date(bank: &PiggyBank, date: NaiveDate) -> f64
 {
-    use chrono::Datelike;
+    let mut total = 0.0;
 
-    assert!(payday > 0 && payday <= 28);
-
-    let current_day = current_date.day();
-
-    if current_day > payday
+    for transaction in &bank.monthly_transactions
     {
-        current_date.with_day(payday).unwrap()
-    }
-    else
-    {
-        let current_year = current_date.year();
-        let (year, month) = match current_date.month()
+        let dates = MonthlyIter::from_date(transaction.start_date.0);
+        for next in dates
         {
-            1 => (current_year - 1, 12),
-            n => (current_year, n - 1)
-        };
-        NaiveDate::from_ymd(year, month, payday)
+            if next > date
+            {
+                break
+            }
+            total += transaction.amount;
+        }
     }
+
+    total
 }
 
-pub fn get_next_payday(payday: u32, current_date: NaiveDate) -> NaiveDate
+fn monthly_transactions_before_date(bank: &PiggyBank, date: NaiveDate) -> f64
+{
+    let mut total = 0.0;
+
+    for transaction in &bank.monthly_transactions
+    {
+        let dates = MonthlyIter::from_date(transaction.start_date.0);
+        for next in dates
+        {
+            if next >= date
+            {
+                break
+            }
+            total += transaction.amount;
+        }
+    }
+
+    total
+}
+
+pub fn same_day_next_month(date: NaiveDate) -> Option<NaiveDate>
 {
     use chrono::Datelike;
 
-    assert!(payday > 0 && payday <= 28);
+    let day = date.day();
+    if day > 28
+    {
+        return None;
+    }
 
-    let prev_payday = get_previous_payday(payday, current_date);
-
-    let current_year = prev_payday.year();
-    let (year, month) = match prev_payday.month()
+    let current_year = date.year();
+    let (year, month) = match date.month()
     {
         12 => (current_year + 1, 1),
         n => (current_year, n + 1)
     };
+    Some(NaiveDate::from_ymd(year, month, day))
+}
 
-    NaiveDate::from_ymd(year, month, payday)
+pub fn get_previous_day(day: u32, current_date: NaiveDate) -> Option<NaiveDate>
+{
+    use chrono::Datelike;
+
+    let current_day = current_date.day();
+
+    match current_day
+    {
+        d if day <= d => current_date.with_day(day),
+        _ => {
+            let current_year = current_date.year();
+            let (year, month) = match current_date.month()
+            {
+                1 => (current_year - 1, 12),
+                n => (current_year, n - 1)
+            };
+            NaiveDate::from_ymd_opt(year, month, day)
+        }
+    }
+}
+
+pub fn get_next_day(day: u32, current_date: NaiveDate) -> Option<NaiveDate>
+{
+    get_previous_day(day, current_date).and_then(|d| same_day_next_month(d))
 }
 

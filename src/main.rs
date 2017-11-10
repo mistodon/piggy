@@ -42,6 +42,7 @@ fn main()
         .settings(&[
             AppSettings::VersionlessSubcommands
         ])
+
         .subcommand(
             SubCommand::with_name("add")
                 .about("Add some money into the piggy bank")
@@ -65,7 +66,16 @@ fn main()
                         .takes_value(true)
                         .validator(is_date)
                     )
+                .arg(
+                    Arg::with_name("monthly")
+                        .help("Add this amount of money this day every month")
+                        .long("monthly")
+                        .short("m")
+                        .takes_value(true)
+                        .validator(day_occurs_every_month)
+                    )
                 )
+
         .subcommand(
             SubCommand::with_name("spend")
                 .about("Spend some money from the piggy bank")
@@ -89,7 +99,16 @@ fn main()
                         .takes_value(true)
                         .validator(is_date)
                     )
+                .arg(
+                    Arg::with_name("monthly")
+                        .help("Spend this amount of money this day every month")
+                        .long("monthly")
+                        .short("m")
+                        .takes_value(true)
+                        .validator(day_occurs_every_month)
+                    )
                 )
+
         .subcommand(
             SubCommand::with_name("balance")
                 .about("Display the balance on any given date")
@@ -139,9 +158,17 @@ fn main()
                 Some(date) => piggy::parse_date_unchecked(date),
                 None => today
             };
-            bank.transactions.push(Transaction { amount, cause, date: Date(date) });
+            match matches.value_of("monthly")
+            {
+                Some(day) => {
+                    let day = day.parse::<u32>().unwrap();
+                    bank.monthly_transactions.push(MonthlyTransaction { amount, cause, day, start_date: Date(date), end_date: None })
+                }
+                None => bank.transactions.push(Transaction { amount, cause, date: Date(date) })
+            }
             bank_modified = true;
         },
+
         ("balance", Some(matches)) =>
         {
             let date = match matches.value_of("on")
@@ -152,6 +179,7 @@ fn main()
             display_balance(&bank, date, &config);
             display_monthly_account(&bank, date, &config);
         },
+
         _ =>
         {
             display_balance(&bank, today, &config);
@@ -177,6 +205,15 @@ fn is_date(s: String) -> Result<(), String>
     use std::str::FromStr;
 
     if NaiveDate::from_str(&s).is_ok() { Ok(()) } else { Err("Expected a date (yyyy-mm-dd)".to_owned()) }
+}
+
+fn day_occurs_every_month(s: String) -> Result<(), String>
+{
+    match s.parse::<u32>()
+    {
+        Ok(n) if (n > 0 && n <= 28) => Ok(()),
+        _ => Err("Expected a day between 1 and 28".to_owned())
+    }
 }
 
 
@@ -214,8 +251,8 @@ fn display_monthly_account(bank: &PiggyBank, date: NaiveDate, config: &AppConfig
 {
     use ansi_term::Color;
 
-    let prev_payday = piggy::get_previous_payday(config.payday, date);
-    let next_payday = piggy::get_next_payday(config.payday, date);
+    let prev_payday = piggy::get_previous_day(config.payday, date).unwrap();
+    let next_payday = piggy::get_next_day(config.payday, date).unwrap();
     println!("From {} to {}", prev_payday, next_payday);
     let transactions = bank.transactions.iter()
         .skip_while(|acc| acc.date.0 < prev_payday)
