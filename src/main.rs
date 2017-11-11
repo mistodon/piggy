@@ -37,7 +37,7 @@ impl Default for AppConfig
 
 
 #[derive(StructOpt)]
-#[structopt(name = "piggy", about = "A tool for tracking monthly spending.")]
+#[structopt()]
 struct Piggy
 {
     #[structopt(subcommand)]
