@@ -43,6 +43,9 @@ impl Default for AppConfig
 #[structopt()]
 struct Piggy
 {
+    #[structopt(short = "f", long = "file", help = "The .piggy file to use. Defaults to ./.piggy then ~/.piggy.")]
+    file: Option<String>,
+
     #[structopt(subcommand)]
     subcommand: Option<PiggySubcommand>
 }
@@ -98,20 +101,27 @@ fn main()
     let command = Piggy::from_args();
 
     let dotfile = {
-        use std::path::{ Path };
-
-        let here: &Path = "./.piggy".as_ref();
-
-        if here.exists()
+        if let Some(path) = command.file
         {
-            here.to_owned()
+            use std::path::PathBuf;
+
+            PathBuf::from(path)
         }
         else
         {
-            use std::env;
-            let mut home = expect!(env::home_dir().ok_or(()), "Failed to find home directory");
-            home.push(".piggy");
-            home
+            let here: &Path = "./.piggy".as_ref();
+
+            if here.exists()
+            {
+                here.to_owned()
+            }
+            else
+            {
+                use std::env;
+                let mut home = expect!(env::home_dir().ok_or(()), "Failed to find home directory");
+                home.push(".piggy");
+                home
+            }
         }
     };
 
