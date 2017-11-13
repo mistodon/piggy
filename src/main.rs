@@ -36,6 +36,9 @@ impl Default for AppConfig
 }
 
 
+// TODO: Add `set-balance` subcommand
+// TODO: Add `end` subcommand to stop a monthly transaction
+// TODO: Add `config` subcommand to change payday, currency, etc.
 #[derive(StructOpt)]
 #[structopt()]
 struct Piggy
@@ -95,6 +98,7 @@ fn main()
     let command = Piggy::from_args();
 
     let dotfile = {
+        // TODO: Use ~/.piggy in release mode
         use std::path::PathBuf;
 
         PathBuf::from("./.piggy")
@@ -118,6 +122,7 @@ fn main()
 
     match command.subcommand
     {
+        // TODO: Fix DRY fail between add/spend
         Some(PiggySubcommand::Add { amount, cause, on, monthly }) =>
         {
             let date = on;
