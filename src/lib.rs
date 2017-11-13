@@ -103,6 +103,8 @@ pub fn transactions_by_date(bank: &PiggyBank, date: NaiveDate) -> Vec<Transactio
         }
     }
 
+    transactions.sort_by_key(|t| t.date);
+
     transactions
 }
 

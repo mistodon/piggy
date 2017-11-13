@@ -194,7 +194,7 @@ fn display_balance(bank: &PiggyBank, date: NaiveDate, config: &AppConfig)
     let balance: f64 = piggy::transactions_by_date(bank, date).iter().map(|t| t.amount).sum();
     let balance_string = Color::Fixed(15).paint("Balance: ");
     let value_color = if balance < 0.0 { Color::Fixed(9) } else { Color::Fixed(10) };
-    let value_string = value_color.paint(format!("{}{}", &config.currency, balance));
+    let value_string = value_color.paint(format!("{}{:.2}", &config.currency, balance));
     println!("{}{}", balance_string, value_string);
 }
 
@@ -206,8 +206,6 @@ fn display_monthly_account(bank: &PiggyBank, date: NaiveDate, config: &AppConfig
     let prev_payday = piggy::get_previous_day(config.payday, date);
     let next_payday = piggy::get_next_day(config.payday, date);
 
-    println!("From {} to {}", prev_payday, next_payday);
-
     let transactions = piggy::transactions_by_date(bank, next_payday);
 
     let mut working_balance = transactions.iter()
@@ -216,8 +214,10 @@ fn display_monthly_account(bank: &PiggyBank, date: NaiveDate, config: &AppConfig
         .sum();
 
     let white = Color::Fixed(15);
+    let grey = Color::Fixed(8);
     let red = Color::Fixed(9);
     let green = Color::Fixed(10);
+    let blue = Color::Fixed(11);
 
     let format_money = |amount: f64, pos_op|
     {
@@ -226,15 +226,23 @@ fn display_monthly_account(bank: &PiggyBank, date: NaiveDate, config: &AppConfig
             n if n < 0.0 => (red, '-', -1.0),
             _ => (green, pos_op, 1.0)
         };
-        let text = format!("{}{}{}", sign, &config.currency, amount * signum);
-        color.paint(format!("{: >6}", text))
+        let text = format!("{}{}{:.2}", sign, &config.currency, amount * signum);
+        color.paint(format!("{: >10}", text))
     };
+
+    // TODO: Insert a marker for today if there's no transactions on today's date
 
     for transaction in transactions.iter().filter(|t| t.date.0 >= prev_payday)
     {
         working_balance += transaction.amount;
 
-        let date_label = white.paint(transaction.date.0.to_string());
+        let date_color = match transaction.date.0
+        {
+            d if d < date => white,
+            d if d > date => grey,
+            _ => blue
+        };
+        let date_label = date_color.paint(transaction.date.0.to_string());
         let delta_label = format_money(transaction.amount, '+');
         let balance_label = format_money(working_balance, ' ');
 
