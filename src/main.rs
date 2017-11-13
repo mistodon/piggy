@@ -30,7 +30,7 @@ impl Default for AppConfig
         AppConfig 
         { 
             currency: "£".to_owned(),
-            payday: Day(25)
+            payday: Day::new(25).unwrap()
         }
     }
 }
@@ -185,8 +185,8 @@ fn write_file<T: Serialize>(path: &Path, data: &T)
 fn display_balance(bank: &PiggyBank, date: NaiveDate, config: &AppConfig)
 {
     use ansi_term::Color;
-
-    let balance = piggy::balance_on_date(&bank, date);
+    
+    let balance: f64 = piggy::transactions_by_date(bank, date).iter().map(|t| t.amount).sum();
     let balance_string = Color::Fixed(15).paint("Balance: ");
     let value_color = if balance < 0.0 { Color::Fixed(9) } else { Color::Fixed(10) };
     let value_string = value_color.paint(format!("{}{}", &config.currency, balance));
@@ -198,14 +198,17 @@ fn display_monthly_account(bank: &PiggyBank, date: NaiveDate, config: &AppConfig
 {
     use ansi_term::Color;
 
-    let prev_payday = piggy::get_previous_day(config.payday, date).unwrap();
-    let next_payday = piggy::get_next_day(config.payday, date).unwrap();
-    println!("From {} to {}", prev_payday, next_payday);
-    let transactions = bank.transactions.iter()
-        .skip_while(|acc| acc.date.0 < prev_payday)
-        .take_while(|acc| acc.date.0 <= next_payday);
+    let prev_payday = piggy::get_previous_day(config.payday, date);
+    let next_payday = piggy::get_next_day(config.payday, date);
 
-    let mut working_balance = piggy::balance_before_date(&bank, prev_payday);
+    println!("From {} to {}", prev_payday, next_payday);
+
+    let transactions = piggy::transactions_by_date(bank, next_payday);
+
+    let mut working_balance = transactions.iter()
+        .filter(|t| t.date.0 < prev_payday)
+        .map(|t| t.amount)
+        .sum();
 
     let white = Color::Fixed(15);
     let red = Color::Fixed(9);
@@ -222,7 +225,7 @@ fn display_monthly_account(bank: &PiggyBank, date: NaiveDate, config: &AppConfig
         color.paint(format!("{: >6}", text))
     };
 
-    for transaction in transactions
+    for transaction in transactions.iter().filter(|t| t.date.0 >= prev_payday)
     {
         working_balance += transaction.amount;
 

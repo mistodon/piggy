@@ -56,7 +56,20 @@ impl<'de> Deserialize<'de> for Date
 
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-pub struct Day(pub u32);
+pub struct Day(u32);
+
+impl Day
+{
+    pub fn new(day: u32) -> Option<Day>
+    {
+        if day > 0 && day <= 28 { Some(Day(day)) } else { None }
+    }
+
+    pub fn day(&self) -> u32
+    {
+        self.0
+    }
+}
 
 impl FromStr for Day
 {
@@ -77,7 +90,7 @@ pub struct PiggyBank
     pub monthly_transactions: Vec<MonthlyTransaction>
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transaction
 {
     pub amount: f64,
