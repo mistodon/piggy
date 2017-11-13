@@ -36,6 +36,7 @@ impl Default for AppConfig
 }
 
 
+// TODO: Prevent duplicate monthly transactions
 // TODO: Add `end` subcommand to stop a monthly transaction
 // TODO: Add `config` subcommand to change payday, currency, etc.
 #[derive(StructOpt)]
@@ -210,6 +211,8 @@ fn main()
         bank.transactions.sort_by_key(|acc| acc.date);
         write_file(&dotfile, &bank);
     }
+
+    // TODO: Display balance/transactions regardless of subcommand used
 }
 
 
@@ -274,10 +277,21 @@ fn display_monthly_account(bank: &PiggyBank, date: NaiveDate, config: &AppConfig
         color.paint(format!("{: >10}", text))
     };
 
-    // TODO: Insert a marker for today if there's no transactions on today's date
+    let mut today_shown = false;
 
     for transaction in transactions.iter().filter(|t| t.date.0 >= prev_payday)
     {
+        match transaction.date.0
+        {
+            d if d == date => today_shown = true,
+            d if d > date && !today_shown =>
+            {
+                println!("{}:{: >15}{}", blue.paint(date.to_string()), "", format_money(working_balance, ' '));
+                today_shown = true;
+            },
+            _ => ()
+        }
+
         working_balance += transaction.amount;
 
         let date_color = match transaction.date.0
