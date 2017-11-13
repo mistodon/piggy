@@ -17,28 +17,8 @@ use serde::{ Serialize, Deserialize };
 use piggy::data::*;
 
 
-struct AppConfig
-{
-    pub currency: String,
-    pub payday: Day
-}
-
-impl Default for AppConfig
-{
-    fn default() -> Self
-    {
-        AppConfig 
-        { 
-            currency: "£".to_owned(),
-            payday: Day::new(25).unwrap()
-        }
-    }
-}
-
-
 // TODO: Prevent duplicate monthly transactions
 // TODO: Add `end` subcommand to stop a monthly transaction
-// TODO: Add `config` subcommand to change payday, currency, etc.
 #[derive(StructOpt)]
 #[structopt()]
 struct Piggy
@@ -103,6 +83,19 @@ enum PiggySubcommand
 
         #[structopt(long = "on", help = "The date to set the balance on.", default_value = "today")]
         on: Date
+    },
+
+    #[structopt(name = "config", about = "Change various configuration options")]
+    Config
+    {
+        #[structopt(long = "payday", help = "Change the day of the month to display transactions between.")]
+        payday: Option<Day>,
+
+        #[structopt(long = "currency", help = "Change the currency prefix.")]
+        currency: Option<String>,
+
+        #[structopt(long = "decimal", help = "The number of decimal places to use for currency.")]
+        decimal: Option<usize>
     }
 }
 
@@ -137,8 +130,6 @@ fn main()
             }
         }
     };
-
-    let config = AppConfig::default();
 
     let mut bank: PiggyBank = {
 
@@ -193,6 +184,14 @@ fn main()
             bank_modified = true;
         },
 
+        Some(PiggySubcommand::Config { payday, currency, decimal }) =>
+        {
+            bank.config.payday = payday.unwrap_or(bank.config.payday);
+            bank.config.currency = currency.unwrap_or(bank.config.currency);
+            bank.config.decimal_places = decimal.unwrap_or(bank.config.decimal_places);
+            bank_modified = true;
+        },
+
         Some(PiggySubcommand::Balance { on, .. }) => date_to_report = on.0,
 
         None => ()
@@ -204,8 +203,8 @@ fn main()
         write_file(&dotfile, &bank);
     }
 
-    display_monthly_account(&bank, date_to_report, &config);
-    display_balance(&bank, date_to_report, &config);
+    display_monthly_account(&bank, date_to_report);
+    display_balance(&bank, date_to_report);
 }
 
 
@@ -227,21 +226,25 @@ fn write_file<T: Serialize>(path: &Path, data: &T)
     expect!(serde_yaml::to_writer(file, data), "Failed to write file {:?}", path);
 }
 
-fn display_balance(bank: &PiggyBank, date: NaiveDate, config: &AppConfig)
+fn display_balance(bank: &PiggyBank, date: NaiveDate)
 {
     use ansi_term::Color;
+
+    let config = &bank.config;
     
     let balance: f64 = piggy::transactions_by_date(bank, date).iter().map(|t| t.amount).sum();
     let balance_string = Color::Fixed(15).paint("Balance: ");
     let value_color = if balance < 0.0 { Color::Fixed(9) } else { Color::Fixed(10) };
-    let value_string = value_color.paint(format!("{}{:.2}", &config.currency, balance));
+    let value_string = value_color.paint(format!("{}{:.dp$}", &config.currency, balance, dp = config.decimal_places));
     println!("{}{}", balance_string, value_string);
 }
 
 
-fn display_monthly_account(bank: &PiggyBank, date: NaiveDate, config: &AppConfig)
+fn display_monthly_account(bank: &PiggyBank, date: NaiveDate)
 {
     use ansi_term::Color;
+
+    let config = &bank.config;
 
     let prev_payday = piggy::get_previous_day(config.payday, date);
     let next_payday = piggy::get_next_day(config.payday, date);
@@ -266,7 +269,7 @@ fn display_monthly_account(bank: &PiggyBank, date: NaiveDate, config: &AppConfig
             n if n < 0.0 => (red, '-', -1.0),
             _ => (green, pos_op, 1.0)
         };
-        let text = format!("{}{}{:.2}", sign, &config.currency, amount * signum);
+        let text = format!("{}{}{:.dp$}", sign, &config.currency, amount * signum, dp = config.decimal_places);
         color.paint(format!("{: >10}", text))
     };
 

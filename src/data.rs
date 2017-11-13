@@ -86,6 +86,7 @@ impl FromStr for Day
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct PiggyBank
 {
+    pub config: AppConfig,
     pub transactions: Vec<Transaction>,
     pub monthly_transactions: Vec<MonthlyTransaction>
 }
@@ -106,4 +107,25 @@ pub struct MonthlyTransaction
     pub day: Day,
     pub start_date: Date,
     pub end_date: Option<Date>
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AppConfig
+{
+    pub currency: String,
+    pub payday: Day,
+    pub decimal_places: usize
+}
+
+impl Default for AppConfig
+{
+    fn default() -> Self
+    {
+        AppConfig
+        {
+            currency: "£".to_owned(),
+            payday: Day::new(25).unwrap(),
+            decimal_places: 2
+        }
+    }
 }
