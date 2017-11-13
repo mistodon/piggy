@@ -17,8 +17,7 @@ use serde::{ Serialize, Deserialize };
 use piggy::data::*;
 
 
-// TODO: Prevent duplicate monthly transactions
-// TODO: Add `end` subcommand to stop a monthly transaction
+// TODO: Add `end` subcommand to stop a monthly transaction.
 #[derive(StructOpt)]
 #[structopt()]
 struct Piggy
@@ -146,33 +145,30 @@ fn main()
     let today = Utc::today().naive_utc();
     let mut date_to_report = today;
 
+
+    fn add_transaction(bank: &mut PiggyBank, amount: f64, cause: String, date: Date, monthly: Option<Day>)
+    {
+        match monthly
+        {
+            Some(day) => {
+                bank.monthly_transactions.push(MonthlyTransaction { amount, cause, day, start_date: date, end_date: None })
+            }
+            None => bank.transactions.push(Transaction { amount, cause, date })
+        }
+    }
+
+
     match command.subcommand
     {
-        // TODO: Fix DRY fail between add/spend
         Some(PiggySubcommand::Add { amount, cause, on, monthly }) =>
         {
-            let date = on;
-            match monthly
-            {
-                Some(day) => {
-                    bank.monthly_transactions.push(MonthlyTransaction { amount, cause, day, start_date: date, end_date: None })
-                }
-                None => bank.transactions.push(Transaction { amount, cause, date })
-            }
+            add_transaction(&mut bank, amount, cause, on, monthly);
             bank_modified = true;
         },
 
         Some(PiggySubcommand::Spend { amount, cause, on, monthly }) =>
         {
-            let date = on;
-            let amount = -amount;
-            match monthly
-            {
-                Some(day) => {
-                    bank.monthly_transactions.push(MonthlyTransaction { amount, cause, day, start_date: date, end_date: None })
-                }
-                None => bank.transactions.push(Transaction { amount, cause, date })
-            }
+            add_transaction(&mut bank, -amount, cause, on, monthly);
             bank_modified = true;
         },
 
