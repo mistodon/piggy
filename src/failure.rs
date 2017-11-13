@@ -1,6 +1,11 @@
 #[macro_export]
 macro_rules! expect
 {
+    ($e: expr, $message: tt) =>
+    {
+        $e.unwrap_or_else(|_| { eprint!("error: piggy: "); eprintln!($message); ::std::process::exit(1) })
+    };
+
     ($e: expr, $message: tt, $($arg: expr),*) =>
     {
         $e.unwrap_or_else(|_| { eprint!("error: piggy: "); eprintln!($message, $($arg),*); ::std::process::exit(1) })

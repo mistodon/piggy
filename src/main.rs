@@ -98,10 +98,21 @@ fn main()
     let command = Piggy::from_args();
 
     let dotfile = {
-        // TODO: Use ~/.piggy in release mode
-        use std::path::PathBuf;
+        use std::path::{ Path };
 
-        PathBuf::from("./.piggy")
+        let here: &Path = "./.piggy".as_ref();
+
+        if here.exists()
+        {
+            here.to_owned()
+        }
+        else
+        {
+            use std::env;
+            let mut home = expect!(env::home_dir().ok_or(()), "Failed to find home directory");
+            home.push(".piggy");
+            home
+        }
     };
 
     let config = AppConfig::default();
