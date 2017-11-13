@@ -36,7 +36,6 @@ impl Default for AppConfig
 }
 
 
-// TODO: Add `set-balance` subcommand
 // TODO: Add `end` subcommand to stop a monthly transaction
 // TODO: Add `config` subcommand to change payday, currency, etc.
 #[derive(StructOpt)]
@@ -89,7 +88,20 @@ enum PiggySubcommand
     Balance
     {
         #[structopt(long = "on", help = "The date to check the balance for.", default_value = "today")]
-        on: Date,
+        on: Date
+    },
+
+    #[structopt(name = "set-balance", about = "Add or spend enough to set the balance to the given value")]
+    SetBalance
+    {
+        #[structopt(help = "The new balance.")]
+        amount: f64,
+
+        #[structopt(help = "The reason for adjusting the balance.", default_value = "Set balance")]
+        cause: String,
+
+        #[structopt(long = "on", help = "The date to set the balance on.", default_value = "today")]
+        on: Date
     }
 }
 
@@ -156,6 +168,7 @@ fn main()
             }
             bank_modified = true;
         },
+
         Some(PiggySubcommand::Spend { amount, cause, on, monthly }) =>
         {
             let date = on;
@@ -169,12 +182,22 @@ fn main()
             }
             bank_modified = true;
         },
+
+        Some(PiggySubcommand::SetBalance { amount, cause, on }) =>
+        {
+            let current_balance: f64 = piggy::transactions_by_date(&bank, on.0).iter().map(|t| t.amount).sum();
+            let change = amount - current_balance;
+            bank.transactions.push(Transaction { amount: change, cause, date: on });
+            bank_modified = true;
+        },
+
         Some(PiggySubcommand::Balance { on, .. }) =>
         {
             let date = on;
             display_balance(&bank, date.0, &config);
             display_monthly_account(&bank, date.0, &config);
         },
+
         None =>
         {
             display_balance(&bank, today, &config);
@@ -238,7 +261,7 @@ fn display_monthly_account(bank: &PiggyBank, date: NaiveDate, config: &AppConfig
     let grey = Color::Fixed(8);
     let red = Color::Fixed(9);
     let green = Color::Fixed(10);
-    let blue = Color::Fixed(11);
+    let blue = Color::Fixed(12);
 
     let format_money = |amount: f64, pos_op|
     {
