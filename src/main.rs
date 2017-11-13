@@ -153,6 +153,7 @@ fn main()
     let mut bank_modified = false;
 
     let today = Utc::today().naive_utc();
+    let mut date_to_report = today;
 
     match command.subcommand
     {
@@ -192,18 +193,9 @@ fn main()
             bank_modified = true;
         },
 
-        Some(PiggySubcommand::Balance { on, .. }) =>
-        {
-            let date = on;
-            display_balance(&bank, date.0, &config);
-            display_monthly_account(&bank, date.0, &config);
-        },
+        Some(PiggySubcommand::Balance { on, .. }) => date_to_report = on.0,
 
-        None =>
-        {
-            display_balance(&bank, today, &config);
-            display_monthly_account(&bank, today, &config);
-        }
+        None => ()
     }
 
     if bank_modified
@@ -212,7 +204,8 @@ fn main()
         write_file(&dotfile, &bank);
     }
 
-    // TODO: Display balance/transactions regardless of subcommand used
+    display_monthly_account(&bank, date_to_report, &config);
+    display_balance(&bank, date_to_report, &config);
 }
 
 
