@@ -17,12 +17,12 @@ macro_rules! expect
 {
     ($e: expr, $message: tt) =>
     {
-        $e.unwrap_or_else(|_| { fail!($message) })
+        $e.unwrap_or_else(|| { fail!($message) })
     };
 
     ($e: expr, $message: tt, $($arg: expr),*) =>
     {
-        $e.unwrap_or_else(|_| { fail!($message, $($arg),*) })
+        $e.unwrap_or_else(|| { fail!($message, $($arg),*) })
     }
 }
 

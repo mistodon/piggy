@@ -17,7 +17,6 @@ use serde::{ Serialize, Deserialize };
 use piggy::data::*;
 
 
-// TODO: Add `end` subcommand to stop a monthly transaction.
 #[derive(StructOpt)]
 #[structopt()]
 struct Piggy
@@ -62,6 +61,16 @@ enum PiggySubcommand
 
         #[structopt(short = "m", long = "monthly", help = "Spend this amount of money this day every month.")]
         monthly: Option<Day>
+    },
+
+    #[structopt(name = "end", about = "End a monthly transaction")]
+    End
+    {
+        #[structopt(help = "The name of the monthly transaction to end.")]
+        name: String,
+
+        #[structopt(help = "The date to end it on.", default_value = "today")]
+        on: Date
     },
 
     #[structopt(name = "balance", about = "Display the balance on a certain date")]
@@ -123,7 +132,7 @@ fn main()
             else
             {
                 use std::env;
-                let mut home = expect!(env::home_dir().ok_or(()), "Failed to find home directory");
+                let mut home = expect!(env::home_dir(), "Failed to find home directory");
                 home.push(".piggy");
                 home
             }
@@ -182,6 +191,13 @@ fn main()
             bank_modified = true;
         },
 
+        Some(PiggySubcommand::End { name, on }) =>
+        {
+            let monthly = expect!(bank.monthly_transactions.iter_mut().find(|t| t.cause == name), "No monthly transaction named '{}' was found.", name);
+            monthly.end_date = Some(on);
+            bank_modified = true;
+        },
+
         Some(PiggySubcommand::SetBalance { amount, cause, on }) =>
         {
             let current_balance: f64 = piggy::transactions_by_date(&bank, on.0).iter().map(|t| t.amount).sum();
@@ -220,16 +236,16 @@ where for <'de>
 {
     use std::fs::File;
 
-    let file = expect!(File::open(path), "Failed to open {:?}", path);
-    expect!(serde_yaml::from_reader(file), "Failed to parse file {:?}", path)
+    let file = expect!(File::open(path).ok(), "Failed to open {:?}", path);
+    expect!(serde_yaml::from_reader(file).ok(), "Failed to parse file {:?}", path)
 }
 
 fn write_file<T: Serialize>(path: &Path, data: &T)
 {
     use std::fs::File;
 
-    let file = expect!(File::create(path), "Failed to open {:?}", path);
-    expect!(serde_yaml::to_writer(file, data), "Failed to write file {:?}", path);
+    let file = expect!(File::create(path).ok(), "Failed to open {:?}", path);
+    expect!(serde_yaml::to_writer(file, data).ok(), "Failed to write file {:?}", path);
 }
 
 fn display_balance(bank: &PiggyBank, date: NaiveDate)

@@ -116,9 +116,9 @@ pub fn monthlies_conflict(t0: &MonthlyTransaction, t1: &MonthlyTransaction) -> b
 
     match (t0.end_date, t1.end_date)
     {
-        (Some(end0), Some(end1)) => (start0 >= end1) || (start1 >= end0),
-        (None, Some(end1)) => start0 >= end1,
-        (Some(end0), None) => start1 >= end0,
+        (Some(end0), Some(end1)) => (start0 < end1) && (start1 < end0),
+        (None, Some(end1)) => start0 < end1,
+        (Some(end0), None) => start1 < end0,
         (None, None) => true
     }
 }
