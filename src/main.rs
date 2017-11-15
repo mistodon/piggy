@@ -151,7 +151,17 @@ fn main()
         match monthly
         {
             Some(day) => {
-                bank.monthly_transactions.push(MonthlyTransaction { amount, cause, day, start_date: date, end_date: None })
+                let new_monthly = MonthlyTransaction { amount, cause, day, start_date: date, end_date: None };
+                let conflicts = bank.monthly_transactions.iter()
+                    .filter(|t| t.cause == new_monthly.cause)
+                    .any(|t| piggy::monthlies_conflict(&new_monthly, t));
+
+                if conflicts
+                {
+                    fail!("Ongoing monthly transaction '{}' already exists. Consider `end`ing it or choosing a different name.", new_monthly.cause);
+                }
+
+                bank.monthly_transactions.push(new_monthly);
             }
             None => bank.transactions.push(Transaction { amount, cause, date })
         }

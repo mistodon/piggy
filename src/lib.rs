@@ -108,3 +108,17 @@ pub fn transactions_by_date(bank: &PiggyBank, date: NaiveDate) -> Vec<Transactio
     transactions
 }
 
+
+pub fn monthlies_conflict(t0: &MonthlyTransaction, t1: &MonthlyTransaction) -> bool
+{
+    let start0 = t0.start_date;
+    let start1 = t1.start_date;
+
+    match (t0.end_date, t1.end_date)
+    {
+        (Some(end0), Some(end1)) => (start0 >= end1) || (start1 >= end0),
+        (None, Some(end1)) => start0 >= end1,
+        (Some(end0), None) => start1 >= end0,
+        (None, None) => true
+    }
+}
