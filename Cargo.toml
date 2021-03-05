@@ -2,7 +2,7 @@
 name = "piggy"
 description = "A command line tool for tracking monthly spending."
 version = "0.1.0"
-authors = ["Pirh <***redacted.email@redacted.nope***>"]
+authors = ["Vi <violet@hey.com>"]
 
 [dependencies]
 ansi_term = "~0.10.2"
